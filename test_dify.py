@@ -21,6 +21,12 @@ def configure_console_encoding():
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
 
+
+def get_secret(name):
+    """讀取環境變數並清掉常見複製貼上造成的空白/換行/外層引號。"""
+    value = os.getenv(name, "")
+    return value.strip().strip('"').strip("'")
+
 # =====================================================================
 # 3. 核心業務邏輯區 (函式定義)
 # =====================================================================
@@ -57,7 +63,7 @@ def json_runner_to_dify(weather_json_data):
     - DIFY_API_URL：選填，預設 https://api.dify.ai/v1/workflows/run
     - DIFY_INPUT_KEY：選填，預設 weather_data，需對應 Dify Workflow 的輸入變數名稱
     """
-    dify_api_key = os.getenv("DIFY_API_KEY")
+    dify_api_key = get_secret("DIFY_API_KEY")
     if not dify_api_key:
         print("🚨 錯誤：未能在環境變數中讀取到 DIFY_API_KEY")
         return ""
@@ -107,8 +113,8 @@ def send_line_message(wording_text):
     【2026 現代化架構】將大腦文案透過 LINE Messaging API 主動推播（Push Message）至執行長手機
     """
     # 1. 嚴格落實防硬編碼，從環境變數讀取新燃料
-    access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-    user_id = os.getenv("LINE_USER_ID")
+    access_token = get_secret("LINE_CHANNEL_ACCESS_TOKEN")
+    user_id = get_secret("LINE_USER_ID")
     
     if not access_token or not user_id:
         print("🚨 錯誤：未能在環境變數中讀取到 LINE_CHANNEL_ACCESS_TOKEN 或 LINE_USER_ID")
