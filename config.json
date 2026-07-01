@@ -1,0 +1,58 @@
+{
+  "target_locations": [
+    {
+      "key": "臺北市中山區",
+      "city": "臺北市",
+      "district": "中山區",
+      "aqi_station": "中山"
+    },
+    {
+      "key": "臺北市信義區",
+      "city": "臺北市",
+      "district": "信義區",
+      "aqi_station": "信義"
+    },
+    {
+      "key": "新北市板橋區",
+      "city": "新北市",
+      "district": "板橋區",
+      "aqi_station": "板橋"
+    },
+    {
+      "key": "新北市永和區",
+      "city": "新北市",
+      "district": "永和區",
+      "aqi_station": "永和"
+    },
+    {
+      "key": "桃園市桃園區",
+      "city": "桃園市",
+      "district": "桃園區",
+      "aqi_station": "桃園"
+    },
+    {
+      "key": "桃園市平鎮區",
+      "city": "桃園市",
+      "district": "平鎮區",
+      "aqi_station": "平鎮"
+    },
+    {
+      "key": "花蓮縣花蓮市",
+      "city": "花蓮縣",
+      "district": "花蓮市",
+      "aqi_station": "花蓮"
+    },
+    {
+      "key": "花蓮縣吉安鄉",
+      "city": "花蓮縣",
+      "district": "吉安鄉",
+      "aqi_station": "花蓮"
+    },
+    {
+      "key": "基隆市仁愛區",
+      "city": "基隆市",
+      "district": "仁愛區",
+      "aqi_station": "基隆"
+    }
+  ]
+}
