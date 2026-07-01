@@ -7,6 +7,8 @@ import sys
 import requests
 from dotenv import load_dotenv
 
+from main import build_final_ai_package
+
 # =====================================================================
 # 2. 專案初始化配置 (全域配置，檔案開啟時先載入一次即可)
 # =====================================================================
@@ -157,13 +159,14 @@ def send_line_message(wording_text):
 if __name__ == "__main__":
     configure_console_encoding()
     print("=== 🌟 天氣特工 2.0 現代化渠道全線通車大典 🌟 ===")
-    
-    # 模擬測試數據
-    mock_json_data = '{"reporting_mode": "morning", "location_count": 1, "locations": [{"key": "臺北市中山區", "city": "臺北市", "district": "中山區", "weather": {"temperature_range": "27-35", "min_temperature": 27, "max_temperature": 35, "pop": "10"}, "air_quality": {"aqi": "40", "source": "中山"}}]}'
-    
+
+    print("🌦️ 正在抓取 9 個黃金指標點的即時天氣與 AQI 資料...")
+    weather_package = build_final_ai_package()
+    weather_json_data = json.dumps(weather_package, ensure_ascii=False)
+
     # 第一棒：Python 把即時數據餵給 Dify 雲端大腦
-    final_wording = json_runner_to_dify(mock_json_data)
-    
+    final_wording = json_runner_to_dify(weather_json_data)
+
     # 第二棒：大腦順利吐出精美文案後，直接交給第三棒 LINE 新引擎推播
     if final_wording:
         push_status = send_line_message(final_wording)

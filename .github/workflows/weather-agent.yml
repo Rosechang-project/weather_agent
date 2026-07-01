@@ -1,13 +1,12 @@
-name: Weather Agent
+name: Weather Agent Scheduled Push
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: "0 23 * * *"
 
 jobs:
-  test-dify-line:
+  run-weather-agent:
     runs-on: ubuntu-latest
 
     steps:
@@ -30,6 +29,8 @@ jobs:
 
       - name: Run Dify and LINE smoke test
         env:
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+          MOENV_API_KEY: ${{ secrets.MOENV_API_KEY }}
           DIFY_API_KEY: ${{ secrets.DIFY_API_KEY }}
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
