@@ -146,7 +146,12 @@ def send_line_message(wording_text):
         return True
 
     except requests.exceptions.HTTPError as http_err:
+        detail = ""
+        if http_err.response is not None:
+            detail = http_err.response.text[:500]
         print(f"🚨 LINE 發送失敗！HTTP 錯誤碼：{http_err}")
+        if detail:
+            print(f"LINE API 回應內容：{detail}")
         print("💡 QA 偵錯提醒：請檢查 .env 中的 Access Token 是否複製完整，或 User ID 是否有複製到空格。")
     except Exception as e:
         print(f"🚨 LINE 渠道連線突發異常：{e}")
@@ -172,5 +177,9 @@ if __name__ == "__main__":
         push_status = send_line_message(final_wording)
         if push_status:
             print("\n🏆 【大獲全勝】2026 全新自動化閉環完美通車！請查看手機！")
+        else:
+            print("\n❌ LINE 推播失敗，請查看上方 LINE API 錯誤訊息。")
+            sys.exit(1)
     else:
         print("\n❌ 通車中斷，大腦未能正確產出文案。")
+        sys.exit(1)
