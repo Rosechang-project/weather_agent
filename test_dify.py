@@ -27,6 +27,46 @@ def get_secret(name):
     value = os.getenv(name, "")
     return value.strip().strip('"').strip("'")
 
+
+REPORT_CONTEXTS = {
+    "morning": {
+        "label": "morning_7am",
+        "title": "早安出門提醒",
+        "focus": [
+            "今日氣溫高低與體感",
+            "降雨機率與降雨熱區",
+            "穿衣建議",
+            "雨具與防曬準備",
+        ],
+        "writing_instruction": "請用早上出門前的口吻，協助家人快速決定穿什麼、要不要帶傘、是否需要防曬或薄外套。",
+    },
+    "evening": {
+        "label": "evening_9pm",
+        "title": "晚安生活準備提醒",
+        "focus": [
+            "今晚到明晨是否適合室外曬衣",
+            "夜間降雨與濕度風險",
+            "隔天整體天氣趨勢",
+            "明早出門前可先準備的雨具或衣物",
+        ],
+        "writing_instruction": "請用晚上整理家務與準備明天的口吻，優先提醒室外曬衣風險，並摘要隔天整體天氣。",
+    },
+}
+
+
+def get_report_mode():
+    mode = os.getenv("WEATHER_AGENT_MODE", "morning").strip().lower()
+    if mode not in REPORT_CONTEXTS:
+        print(f"⚠️ 未知推播模式 {mode}，自動改用 morning")
+        return "morning"
+    return mode
+
+
+def attach_delivery_context(weather_package, report_mode):
+    weather_package["reporting_mode"] = report_mode
+    weather_package["delivery_context"] = REPORT_CONTEXTS[report_mode]
+    return weather_package
+
 # =====================================================================
 # 3. 核心業務邏輯區 (函式定義)
 # =====================================================================
@@ -171,8 +211,11 @@ if __name__ == "__main__":
     configure_console_encoding()
     print("=== 🌟 天氣特工 2.0 現代化渠道全線通車大典 🌟 ===")
 
+    report_mode = get_report_mode()
+    print(f"🕒 本次推播模式：{REPORT_CONTEXTS[report_mode]['title']} ({report_mode})")
+
     print("🌦️ 正在抓取 9 個黃金指標點的即時天氣與 AQI 資料...")
-    weather_package = build_final_ai_package()
+    weather_package = attach_delivery_context(build_final_ai_package(), report_mode)
     weather_json_data = json.dumps(weather_package, ensure_ascii=False)
 
     # 第一棒：Python 把即時數據餵給 Dify 雲端大腦

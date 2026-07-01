@@ -2,8 +2,18 @@ name: Weather Agent Scheduled Push
 
 on:
   workflow_dispatch:
+    inputs:
+      report_mode:
+        description: "Push mode"
+        required: true
+        default: "morning"
+        type: choice
+        options:
+          - morning
+          - evening
   schedule:
     - cron: "0 23 * * *"
+    - cron: "0 13 * * *"
 
 jobs:
   run-weather-agent:
@@ -34,4 +44,15 @@ jobs:
           DIFY_API_KEY: ${{ secrets.DIFY_API_KEY }}
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-        run: python test_dify.py
+          WORKFLOW_REPORT_MODE: ${{ github.event.inputs.report_mode || 'auto' }}
+          WORKFLOW_SCHEDULE: ${{ github.event.schedule || '' }}
+        run: |
+          if [ "$WORKFLOW_REPORT_MODE" != "auto" ]; then
+            export WEATHER_AGENT_MODE="$WORKFLOW_REPORT_MODE"
+          elif [ "$WORKFLOW_SCHEDULE" = "0 13 * * *" ]; then
+            export WEATHER_AGENT_MODE="evening"
+          else
+            export WEATHER_AGENT_MODE="morning"
+          fi
+          echo "WEATHER_AGENT_MODE=$WEATHER_AGENT_MODE"
+          python test_dify.py
