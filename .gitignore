@@ -20,6 +20,7 @@ env/
 
 # Logs and local runtime files
 *.log
+*.log.*
 weather_agent.log
 
 # Editor and OS files

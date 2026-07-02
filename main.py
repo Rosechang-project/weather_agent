@@ -5,6 +5,7 @@
 import json
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from cwa_scraper import CwaWeatherScraper
@@ -14,6 +15,8 @@ from moenv_scraper import MoenvAirScraper
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.json"
 LOG_PATH = BASE_DIR / "weather_agent.log"
+LOG_MAX_BYTES = 1_000_000
+LOG_BACKUP_COUNT = 3
 
 
 def configure_console_encoding():
@@ -29,7 +32,12 @@ def configure_logging():
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
-            logging.FileHandler(LOG_PATH, encoding="utf-8"),
+            RotatingFileHandler(
+                LOG_PATH,
+                maxBytes=LOG_MAX_BYTES,
+                backupCount=LOG_BACKUP_COUNT,
+                encoding="utf-8",
+            ),
             logging.StreamHandler(sys.stderr),
         ],
         force=True,
