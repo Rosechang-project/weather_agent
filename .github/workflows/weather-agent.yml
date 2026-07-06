@@ -14,10 +14,10 @@ on:
   schedule:
     # GitHub Actions cron uses UTC.
     # Taiwan time (Asia/Taipei, UTC+8):
-    # - 23:13 UTC = 07:13 Taiwan time, morning push
-    # - 13:17 UTC = 21:17 Taiwan time, evening push
-    - cron: "13 23 * * *"
-    - cron: "17 13 * * *"
+    # - 22:57 UTC = 06:57 Taiwan time, morning push
+    # - 12:57 UTC = 20:57 Taiwan time, evening push
+    - cron: "57 22 * * *"
+    - cron: "57 12 * * *"
 
 jobs:
   run-weather-agent:
@@ -53,8 +53,8 @@ jobs:
           WORKFLOW_REPORT_MODE: ${{ github.event.inputs.report_mode || 'auto' }}
           WORKFLOW_SCHEDULE: ${{ github.event.schedule || '' }}
         run: |
-          MORNING_CRON="13 23 * * *"
-          EVENING_CRON="17 13 * * *"
+          MORNING_CRON="57 22 * * *"
+          EVENING_CRON="57 12 * * *"
 
           echo "WORKFLOW_SCHEDULE=$WORKFLOW_SCHEDULE"
           echo "Runner time=$(date '+%Y-%m-%d %H:%M:%S %Z')"
