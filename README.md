@@ -63,6 +63,18 @@ weather_agent/
 
 若未設定或設定值不合法，程式會回到 `morning`。
 
+### 播報語氣
+
+早晚模式共用 `test_dify.py` 的 `BROADCAST_STYLE_INSTRUCTION`，透過既有
+`delivery_context.writing_instruction` 傳給 Dify：使用簡短自然的日常口吻，
+保留重要天氣資訊，相近地區可合併說明，每次最多帶入一句生活提醒，不強加節日話題。
+沒有歷史或對應預報時段的資料時，不推測與上週的差異或隔日天氣。
+
+Dify Workflow 的文案生成節點需採用輸入 JSON 中的 `delivery_context.writing_instruction`；
+雲端提示詞已同步移除固定月份、分段標題與固定提醒句，降雨以自然語句說明，
+必要時最多保留一個代表數字。文案以約 150 至 230 字、2 至 3 個短段落為原則。
+這些指示不會儲存歷次文案，無法保證跨次播報不重複。
+
 ## GitHub Actions 排程
 
 Workflow 檔案：
