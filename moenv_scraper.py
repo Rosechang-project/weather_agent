@@ -1,6 +1,7 @@
 import os
 import requests
 from dotenv import load_dotenv
+from api_utils import request_error_summary
 
 load_dotenv()
 
@@ -27,6 +28,12 @@ class MoenvAirScraper:
         try:
             response = requests.get(self.base_url, params=payload, timeout=10)
             response.raise_for_status()
-            return {"status": "success", "data": response.json()}
+            data = response.json()
+            records = data.get("records") if isinstance(data, dict) else data
+            if not isinstance(records, list):
+                return {"status": "error", "msg": "環境部回傳資料缺少測站清單"}
+            return {"status": "success", "data": data}
+        except ValueError:
+            return {"status": "error", "msg": "環境部回傳內容不是有效 JSON"}
         except requests.exceptions.RequestException as e:
-            return {"status": "error", "msg": f"環境部連線失敗：{str(e)}"}
+            return {"status": "error", "msg": request_error_summary("環境部", e)}

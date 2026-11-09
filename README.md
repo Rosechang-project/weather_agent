@@ -46,8 +46,11 @@ weather_agent/
 |-- config.json                          # 目標地點、行政區與 AQI 測站設定
 |-- cwa_scraper.py                       # 中央氣象署天氣 API client
 |-- moenv_scraper.py                     # 環境部 AQI API client
+|-- api_utils.py                         # 不含金鑰與網址的 API 錯誤摘要
 |-- main.py                              # 天氣與空氣品質資料整合主程式
 |-- test_dify.py                         # Dify Workflow 與 LINE 推播流程
+|-- test_air_quality.py                  # AQI 測站與缺測回歸測試
+|-- test_weather_pipeline.py             # 時段、異常回應與推播前檢查的離線測試
 |-- DEVELOPMENT_GUIDELINES.md            # 開發與維護準則
 `-- README.md                            # 專案說明文件
 ```
@@ -93,8 +96,9 @@ Workflow 檔案：
 GitHub Actions 執行時會先做基本檢查：
 
 - 安裝 Python 3.11 與必要套件。
-- 執行 `python -m py_compile` 檢查 Python 語法。
+- 執行 `python -m compileall -q .` 檢查 Python 語法。
 - 執行 `python -m json.tool config.json` 驗證 JSON 格式。
+- 執行 `python -m unittest discover -v` 驗證資料解析與失敗處理。
 - 依排程或手動輸入決定 `WEATHER_AGENT_MODE`。
 - 執行 `python test_dify.py` 完成 Dify 與 LINE 推播流程。
 
@@ -182,11 +186,12 @@ python test_dify.py
 
 ## 輸出資料格式
 
-`main.py` 會建立一份給 Dify 使用的資料包，主要結構如下：
+`main.py` 建立天氣資料包，`test_dify.py` 加上播報模式、資料產生時間與文案情境後送給 Dify，主要結構如下：
 
 ```json
 {
   "reporting_mode": "morning",
+  "generated_at": "2026-11-09T06:57:00+08:00",
   "location_count": 9,
   "locations": [
     {
@@ -197,7 +202,17 @@ python test_dify.py
         "temperature_range": "20-25",
         "min_temperature": 20,
         "max_temperature": 25,
-        "pop": "30"
+        "pop": "30",
+        "forecast_start": "2026-11-09T06:00:00+08:00",
+        "forecast_end": "2026-11-09T18:00:00+08:00",
+        "next_period": {
+          "temperature_range": "18-21",
+          "min_temperature": 18,
+          "max_temperature": 21,
+          "pop": "20",
+          "forecast_start": "2026-11-09T18:00:00+08:00",
+          "forecast_end": "2026-11-10T06:00:00+08:00"
+        }
       },
       "air_quality": {
         "aqi": "42",
@@ -216,6 +231,16 @@ python test_dify.py
 
 實際內容會依 API 回傳與 `WEATHER_AGENT_MODE` 而變動。
 
+預報依執行時間選取仍有效的時段；若目前時段尚未提供，選取最近的未來時段，
+不使用已過期資料。氣溫與降雨只合併起訖時間一致的資料，缺漏或無效降雨標示「未取得」，
+真正的 0% 則保留。`next_period` 是下一個可用時段，有資料才附上；每筆數值都有各自的適用時間。
+`generated_at` 使用台灣時間，供 Dify 分辨今天、今晚與明天。
+
+正常推播前會確認至少一個地點有有效氣溫範圍或降雨機率；若天氣全數失效，
+程式以失敗狀態結束，不呼叫 Dify 或發送 LINE。部分地點缺測時仍可播報其餘有效資料。
+Dify 只有在 `data.status` 為 `succeeded`、沒有錯誤，且指定輸出欄位有非空白文字時，
+才會交給 LINE；錯誤訊息或未知 JSON 輸出不當成文案。
+
 ## Log
 
 執行紀錄會寫入：
@@ -229,6 +254,7 @@ weather_agent.log
 - 單一 log 檔最大約 1 MB。
 - 最多保留 3 份備份。
 - log 檔已列入 `.gitignore`，不會被提交到 GitHub。
+- API 失敗僅記錄服務名稱、HTTP 狀態碼或例外類型，不輸出可能含金鑰的網址、例外文字或回應內文。
 
 ## 維護重點
 
@@ -241,9 +267,9 @@ weather_agent.log
 ## 快速檢查
 
 ```bash
-python -m py_compile main.py cwa_scraper.py moenv_scraper.py test_dify.py
+python -m compileall -q .
 python -m json.tool config.json
-python -m unittest test_air_quality -v
+python -m unittest discover -v
 ```
 
-以上檢查都通過後，再執行完整推播流程。AQI 測試不會呼叫外部 API 或發送 LINE 訊息。
+以上檢查都通過後，再執行完整推播流程。回歸測試會以模擬回應檢查資料與錯誤處理，不會呼叫外部 API 或發送 LINE 訊息。

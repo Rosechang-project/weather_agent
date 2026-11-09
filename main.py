@@ -5,6 +5,7 @@
 import json
 import logging
 import sys
+from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -17,6 +18,7 @@ CONFIG_PATH = BASE_DIR / "config.json"
 LOG_PATH = BASE_DIR / "weather_agent.log"
 LOG_MAX_BYTES = 1_000_000
 LOG_BACKUP_COUNT = 3
+TAIPEI_TIMEZONE = timezone(timedelta(hours=8), name="Asia/Taipei")
 
 
 def configure_console_encoding():
@@ -52,34 +54,50 @@ def load_target_locations(config_path: Path = CONFIG_PATH) -> list:
     with config_path.open("r", encoding="utf-8") as file:
         config = json.load(file)
 
+    if not isinstance(config, dict):
+        raise ValueError("config.json 必須是 JSON 物件")
     target_locations = config.get("target_locations", [])
     if not isinstance(target_locations, list) or not target_locations:
         raise ValueError("config.json 必須提供非空的 target_locations 陣列")
 
     required_fields = {"city", "district", "aqi_station"}
     for index, item in enumerate(target_locations, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"target_locations 第 {index} 筆必須是物件")
         missing_fields = required_fields - set(item)
         if missing_fields:
             raise ValueError(
                 f"target_locations 第 {index} 筆缺少欄位：{', '.join(sorted(missing_fields))}"
             )
+        if any(
+            not isinstance(item[field], str) or not item[field].strip()
+            for field in required_fields
+        ):
+            raise ValueError(f"target_locations 第 {index} 筆的必要欄位必須是非空白文字")
 
     return target_locations
 
 
 def extract_air_records(response: dict) -> list:
     """防禦環境部 API 回傳資料型態：相容 Dict 與 List 結構。"""
+    if not isinstance(response, dict):
+        return []
     data = response.get("data", [])
-    if isinstance(data, list):
-        return data
     if isinstance(data, dict):
-        return data.get("records", [])
-    return []
+        data = data.get("records", [])
+    return dictionary_items(data)
+
+
+def dictionary_items(value):
+    """只保留清單中的物件，忽略外部回應的 null 或異常項目。"""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
 
 
 def safe_int(value):
     try:
-        return int(value)
+        return int(str(value).strip())
     except (TypeError, ValueError):
         return None
 
@@ -99,72 +117,117 @@ def empty_weather(error_msg: str) -> dict:
         "temperature_range": "未取得",
         "min_temperature": "未取得",
         "max_temperature": "未取得",
-        "pop": "0",
+        "pop": "未取得",
         "error": error_msg,
     }
 
 
-def parse_location_weather(location: dict) -> dict:
-    """解析單一行政區的最高/最低溫與降雨機率。"""
-    min_temp = None
-    max_temp = None
-    pop = 0
-
-    for element in location.get("WeatherElement", []):
-        element_name = element.get("ElementName", "")
-        time_slots = element.get("Time", [])
-        if not time_slots:
-            continue
-
-        first_value = time_slots[0].get("ElementValue", [{}])[0]
-
-        if element_name == "最低溫度":
-            min_temp = safe_int(first_value.get("MinTemperature"))
-        elif element_name == "最高溫度":
-            max_temp = safe_int(first_value.get("MaxTemperature"))
-        elif "降雨機率" in element_name:
-            pop = safe_int(first_value.get("ProbabilityOfPrecipitation")) or 0
-
-    return {
-        "temperature_range": build_temperature_range(min_temp, max_temp),
-        "min_temperature": min_temp if min_temp is not None else "未取得",
-        "max_temperature": max_temp if max_temp is not None else "未取得",
-        "pop": str(pop),
-    }
-
-
-def find_district_weather(weather_raw: dict, district_name: str) -> dict:
-    """從縣市鄉鎮預報中挑出指定行政區。"""
+def parse_forecast_time(value):
+    if not isinstance(value, str):
+        return None
     try:
-        if weather_raw.get("status") == "error":
-            return empty_weather(weather_raw.get("msg", "天氣資料抓取失敗"))
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=TAIPEI_TIMEZONE)
+        return parsed.astimezone(TAIPEI_TIMEZONE)
+    except ValueError:
+        return None
 
-        records = weather_raw.get("records", {})
-        locations = records.get("Locations", [{}])[0]
-        location_list = locations.get("Location", [])
-        if not location_list:
-            return empty_weather("天氣資料缺少 Location 清單")
 
-        target_normalized = normalize_district_name(district_name)
-        for location in location_list:
-            location_name = str(location.get("LocationName", "")).strip()
-            location_normalized = normalize_district_name(location_name)
-            if district_name == location_name or target_normalized == location_normalized:
-                return parse_location_weather(location)
+def parse_location_weather(location: dict, now=None) -> dict:
+    """選取尚未過期的時段，各欄位依相同起訖時間合併，另附下一時段。"""
+    if not isinstance(location, dict):
+        return empty_weather("行政區預報格式異常")
+    now = now or datetime.now(TAIPEI_TIMEZONE)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=TAIPEI_TIMEZONE)
 
-        return empty_weather(f"找不到行政區預報：{district_name}")
-    except (KeyError, IndexError, TypeError) as exc:
-        return empty_weather(f"天氣資料解析失敗：{str(exc)}")
+    periods = {}
+    for element in dictionary_items(location.get("WeatherElement")):
+        name = element.get("ElementName")
+        if not isinstance(name, str):
+            continue
+        field = {"最低溫度": "MinTemperature", "最高溫度": "MaxTemperature"}.get(name)
+        if field is None and "降雨機率" in name:
+            field = "ProbabilityOfPrecipitation"
+        if field is None:
+            continue
+        for slot in dictionary_items(element.get("Time")):
+            start = parse_forecast_time(slot.get("StartTime"))
+            end = parse_forecast_time(slot.get("EndTime"))
+            if start is None or end is None or end <= start or end <= now:
+                continue
+            values = dictionary_items(slot.get("ElementValue"))
+            value = safe_int(values[0].get(field)) if values else None
+            if (field == "ProbabilityOfPrecipitation"
+                    and value is not None and not 0 <= value <= 100):
+                value = None
+            if value is not None:
+                periods.setdefault((start, end), {})[field] = value
+
+    if not periods:
+        return empty_weather("未取得尚未過期的有效預報")
+
+    # 優先使用溫度的預報週期，避免把不同長度的降雨時段混進同一筆資料。
+    intervals = [
+        period for period, values in periods.items()
+        if "MinTemperature" in values or "MaxTemperature" in values
+    ]
+    intervals = sorted(intervals or periods)
+    current = next(
+        (period for period in intervals if period[0] <= now < period[1]), intervals[0]
+    )
+
+    def snapshot(period):
+        values = periods[period]
+        min_temp = values.get("MinTemperature")
+        max_temp = values.get("MaxTemperature")
+        if min_temp is not None and max_temp is not None and min_temp > max_temp:
+            return empty_weather("預報最低溫高於最高溫")
+        pop = values.get("ProbabilityOfPrecipitation")
+        return {
+            "temperature_range": build_temperature_range(min_temp, max_temp),
+            "min_temperature": min_temp if min_temp is not None else "未取得",
+            "max_temperature": max_temp if max_temp is not None else "未取得",
+            "pop": str(pop) if pop is not None else "未取得",
+            "forecast_start": period[0].isoformat(),
+            "forecast_end": period[1].isoformat(),
+        }
+
+    result = snapshot(current)
+    following = next((period for period in intervals if period[0] >= current[1]), None)
+    if following is not None and "error" not in result:
+        result["next_period"] = snapshot(following)
+    return result
+
+
+def find_district_weather(weather_raw: dict, district_name: str, now=None) -> dict:
+    """從縣市鄉鎮預報中挑出指定行政區。"""
+    if not isinstance(weather_raw, dict):
+        return empty_weather("天氣回應格式異常")
+    if weather_raw.get("status") == "error":
+        return empty_weather("天氣資料抓取失敗")
+    records = weather_raw.get("records")
+    if not isinstance(records, dict):
+        return empty_weather("天氣資料缺少有效 records")
+    target_normalized = normalize_district_name(district_name)
+    for group in dictionary_items(records.get("Locations")):
+        for location in dictionary_items(group.get("Location")):
+            location_name = str(location.get("LocationName") or "").strip()
+            if (district_name == location_name
+                    or target_normalized == normalize_district_name(location_name)):
+                return parse_location_weather(location, now=now)
+    return empty_weather(f"找不到行政區預報：{district_name}")
 
 
 def find_air_record(records: list, station: str) -> dict:
     """依設定檔的測站名稱精確比對，避免部分文字或空名稱誤配。"""
-    target_site = station.strip()
+    target_site = station.strip() if isinstance(station, str) else ""
     if not target_site:
         logging.warning("未指定 AQI 測站名稱")
         return {}
 
-    for record in records:
+    for record in dictionary_items(records):
         db_site = str(record.get("sitename") or "").strip()
         if target_site == db_site:
             return record
@@ -175,6 +238,7 @@ def find_air_record(records: list, station: str) -> dict:
 
 def build_air_snapshot(record: dict) -> dict:
     """保留真實測站來源，缺測或無效數值一律標示未取得。"""
+    record = record if isinstance(record, dict) else {}
     source = str(record.get("sitename") or "").strip()
     aqi = safe_int(str(record.get("aqi", "")).strip())
 

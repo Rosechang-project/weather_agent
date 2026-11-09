@@ -1,6 +1,7 @@
 import os
 import requests
 from dotenv import load_dotenv
+from api_utils import request_error_summary
 
 load_dotenv()
 
@@ -35,6 +36,11 @@ class CwaWeatherScraper:
         try:
             response = requests.get(url, params={"Authorization": self.token}, timeout=10)
             response.raise_for_status()  # 確保 HTTP 回應狀態碼是 200
-            return response.json()  # 回傳 JSON 格式的資料
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"status": "error", "msg": "中央氣象署回傳資料格式異常"}
+            return data
+        except ValueError:
+            return {"status": "error", "msg": "中央氣象署回傳內容不是有效 JSON"}
         except requests.exceptions.RequestException as e:
-            return {"status": "error", "msg": f"中央氣象署連線失敗，無法抓取 {city_name} 氣象資料：{str(e)}"}
+            return {"status": "error", "msg": request_error_summary("中央氣象署", e)}
