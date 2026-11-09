@@ -144,7 +144,12 @@ WEATHER_AGENT_MODE=morning
 - `key`：最後輸出給 Dify 的地點識別名稱。
 - `city`：用來選擇中央氣象署 API 的縣市資料集。
 - `district`：用來在天氣資料中找到對應行政區。
-- `aqi_station`：用來從環境部 AQI 資料中比對最近或指定測站。
+- `aqi_station`：指定環境部 AQI 測站名稱，去除前後空白後精確比對，不依行政區名稱自動推測。
+
+臺北市信義區目前使用「松山」測站作為鄰近空氣品質參考，輸出的 `air_quality.source`
+會保留「松山」。這筆資料代表松山測站的觀測，不是信義區內的實測值。
+若找不到測站或 AQI 缺漏、無效，`air_quality.aqi` 會標示「未取得」，不填入固定數值；
+來源可辨識時仍保留測站名稱，供播報略過缺測資訊並方便追查。
 
 提醒：這個檔案請維持 UTF-8 編碼。如果地名出現亂碼，API 比對可能失準，天氣小精靈就會開始迷路。
 
@@ -238,6 +243,7 @@ weather_agent.log
 ```bash
 python -m py_compile main.py cwa_scraper.py moenv_scraper.py test_dify.py
 python -m json.tool config.json
+python -m unittest test_air_quality -v
 ```
 
-兩個指令都通過後，再執行完整推播流程。這樣比較不會讓天氣小精靈在半路打結。
+以上檢查都通過後，再執行完整推播流程。AQI 測試不會呼叫外部 API 或發送 LINE 訊息。

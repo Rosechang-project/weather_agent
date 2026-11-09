@@ -158,26 +158,42 @@ def find_district_weather(weather_raw: dict, district_name: str) -> dict:
 
 
 def find_air_record(records: list, station: str) -> dict:
-    """用設定檔指定的 AQI 測站名稱，從全台 AQI 清單中找最接近的資料。"""
+    """依設定檔的測站名稱精確比對，避免部分文字或空名稱誤配。"""
     target_site = station.strip()
+    if not target_site:
+        logging.warning("未指定 AQI 測站名稱")
+        return {}
+
     for record in records:
-        db_site = str(record.get("sitename", "")).strip()
-        if target_site in db_site or db_site in target_site:
+        db_site = str(record.get("sitename") or "").strip()
+        if target_site == db_site:
             return record
+
+    logging.warning("找不到 AQI 測站：%s", target_site)
     return {}
 
 
 def build_air_snapshot(record: dict) -> dict:
-    """只輸出乾淨 AQI 數值；若資料不可用，提供保守 fallback。"""
+    """保留真實測站來源，缺測或無效數值一律標示未取得。"""
+    source = str(record.get("sitename") or "").strip()
+    aqi = safe_int(str(record.get("aqi", "")).strip())
+
     if not record:
         return {
-            "aqi": "50",
-            "source": "fallback",
+            "aqi": "未取得",
+            "source": "未取得",
+        }
+
+    if not source or aqi is None or aqi < 0:
+        logging.warning("AQI 測站 %s 缺少有效數值或來源", source or "未取得")
+        return {
+            "aqi": "未取得",
+            "source": source or "未取得",
         }
 
     return {
-        "aqi": record.get("aqi", "50"),
-        "source": record.get("sitename", "環境部 AQI"),
+        "aqi": str(aqi),
+        "source": source,
     }
 
 

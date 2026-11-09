@@ -43,6 +43,9 @@ jobs:
       - name: Validate config JSON
         run: python -m json.tool config.json
 
+      - name: Check AQI station matching and missing data
+        run: python -m unittest test_air_quality -v
+
       - name: Run Dify and LINE smoke test
         env:
           CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
